@@ -1,0 +1,11 @@
+[project]
+name = "llama-swap-optimizer"
+version = "0.1.0"
+description = "Automatically optimize llama-swap config.yaml using llama-optimus"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "pyyaml",
+    "python-dotenv",
+    "llama-optimus",
+]
