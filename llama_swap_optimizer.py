@@ -176,6 +176,11 @@ def run_llama_optimus(model_path: str, trials: int, repeat: int, metric: str,
     Run llama-optimus and return optimization results.
     Returns: {"stage2": {...}, "stage3": {...}, "tokens_per_sec": float, "raw_output": str}
     """
+    # Convert backslashes to forward slashes for llama-optimus compatibility
+    # (its internal shlex.split() treats backslashes as escape characters)
+    llama_bin = llama_bin.replace("\\", "/")
+    model_path = model_path.replace("\\", "/")
+
     cmd = [
         sys.executable, "-m", "llama_optimus.cli",
         "--llama-bin", llama_bin,
