@@ -108,6 +108,18 @@ python llama_swap_optimizer.py --only my-large-model --trials 15 --timeout 43200
 | `--overwrite` | | Overwrite the original config.yaml in place (backup created automatically) |
 | `--output` | `config-optimized.yaml` | Output config file path |
 
+## Skipping models with annotations
+
+If a `model-annotations.yaml` file exists alongside your `config.yaml`, models with `skip_optimizer: true` are automatically excluded from optimization. This is useful for CPU-only models where GPU parameter tuning has no effect.
+
+```yaml
+# model-annotations.yaml
+my-cpu-model:
+  skip_optimizer: true
+```
+
+If the file does not exist, all models in `config.yaml` are optimized (backward compatible).
+
 ## Resume capability
 
 Results are saved as JSON files in `./results/` (one per model). If optimization is interrupted, re-running the script will skip already-completed models. Delete a model's JSON file to force re-optimization.

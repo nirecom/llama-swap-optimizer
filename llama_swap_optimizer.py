@@ -287,6 +287,19 @@ def apply_optimization(flags: dict, result: dict) -> dict:
     return new_flags
 
 
+def load_annotations(annotations_path) -> dict:
+    """Load model annotations from YAML. Returns empty dict if file missing."""
+    try:
+        return yaml.safe_load(Path(annotations_path).read_text(encoding="utf-8")) or {}
+    except FileNotFoundError:
+        return {}
+
+
+def filter_by_annotations(models: list, annotations: dict) -> list:
+    """Remove models where annotations have skip_optimizer set to truthy."""
+    return [m for m in models if not annotations.get(m, {}).get("skip_optimizer")]
+
+
 def load_results(results_dir: str) -> dict:
     """Load previously saved optimization results."""
     results = {}
@@ -429,6 +442,12 @@ def main():
 
     # Filter target models
     target_models = list(models.keys())
+    annotations = load_annotations(config_path.parent / "model-annotations.yaml")
+    skipped_by_annotation = [m for m in target_models if annotations.get(m, {}).get("skip_optimizer")]
+    if skipped_by_annotation:
+        print(f"⏭️  Skipping (annotations): {', '.join(skipped_by_annotation)}")
+        print()
+    target_models = filter_by_annotations(target_models, annotations)
     if args.only:
         target_models = [m for m in target_models if m in args.only]
     if args.skip:
