@@ -1,4 +1,4 @@
-"""Tests for skip_optimizer annotation support."""
+"""Tests for optimizer annotation support (optimizer: skip / lock)."""
 
 import tempfile
 from pathlib import Path
@@ -26,22 +26,22 @@ class TestLoadAnnotations:
     """Tests for load_annotations()."""
 
     def test_returns_empty_dict_when_file_missing(self, annotations_dir):
-        """No file → empty dict, no error."""
+        """No file -> empty dict, no error."""
         result = load_annotations(annotations_dir / "nonexistent")
         assert result == {}
 
     def test_loads_annotations_from_yaml(self, annotations_dir):
         """Normal case: reads annotations from yaml."""
         write_annotations(annotations_dir, {
-            "model-a": {"role": "general", "skip_optimizer": True},
+            "model-a": {"role": "general", "optimizer": "skip"},
             "model-b": {"role": "judge"},
         })
         result = load_annotations(annotations_dir / "model-annotations.yaml")
-        assert result["model-a"]["skip_optimizer"] is True
-        assert "skip_optimizer" not in result["model-b"]
+        assert result["model-a"]["optimizer"] == "skip"
+        assert "optimizer" not in result["model-b"]
 
     def test_returns_empty_dict_when_file_is_empty(self, annotations_dir):
-        """Empty file → empty dict."""
+        """Empty file -> empty dict."""
         (annotations_dir / "model-annotations.yaml").write_text("")
         result = load_annotations(annotations_dir / "model-annotations.yaml")
         assert result == {}
@@ -50,39 +50,74 @@ class TestLoadAnnotations:
 class TestFilterByAnnotations:
     """Tests for filter_by_annotations()."""
 
-    def test_skips_models_with_skip_optimizer_true(self):
-        """Models with skip_optimizer: true are excluded."""
-        models = ["model-a", "model-b", "model-c"]
+    def test_skip_excludes_from_optimize_and_apply(self):
+        """optimizer: skip -> excluded from both optimize and apply."""
+        models = ["model-a", "model-b"]
         annotations = {
-            "model-a": {"skip_optimizer": True},
+            "model-a": {"optimizer": "skip"},
             "model-b": {"role": "general"},
-            "model-c": {"skip_optimizer": False},
         }
-        result = filter_by_annotations(models, annotations)
-        assert result == ["model-b", "model-c"]
+        assert filter_by_annotations(models, annotations, phase="optimize") == ["model-b"]
+        assert filter_by_annotations(models, annotations, phase="apply") == ["model-b"]
+
+    def test_lock_excludes_from_optimize_and_apply(self):
+        """optimizer: lock -> excluded from both optimize and apply."""
+        models = ["model-a", "model-b"]
+        annotations = {
+            "model-a": {"optimizer": "lock"},
+            "model-b": {"role": "general"},
+        }
+        assert filter_by_annotations(models, annotations, phase="optimize") == ["model-b"]
+        assert filter_by_annotations(models, annotations, phase="apply") == ["model-b"]
 
     def test_no_annotations_keeps_all_models(self):
-        """Empty annotations → all models kept."""
+        """Empty annotations -> all models kept."""
         models = ["model-a", "model-b"]
-        result = filter_by_annotations(models, {})
+        result = filter_by_annotations(models, {}, phase="optimize")
         assert result == ["model-a", "model-b"]
 
     def test_model_not_in_annotations_is_kept(self):
         """Models absent from annotations are kept."""
         models = ["model-a", "model-new"]
         annotations = {
-            "model-a": {"skip_optimizer": True},
+            "model-a": {"optimizer": "skip"},
         }
-        result = filter_by_annotations(models, annotations)
+        result = filter_by_annotations(models, annotations, phase="optimize")
         assert result == ["model-new"]
 
-    def test_skip_optimizer_only_when_true(self):
-        """Only skip_optimizer: true triggers skip, not other truthy values."""
+    def test_no_optimizer_field_keeps_model(self):
+        """Models with annotations but no optimizer field are kept."""
+        models = ["model-a"]
+        annotations = {
+            "model-a": {"role": "general", "notes": "some notes"},
+        }
+        result = filter_by_annotations(models, annotations, phase="optimize")
+        assert result == ["model-a"]
+
+    def test_unknown_optimizer_value_keeps_model(self):
+        """Unknown optimizer values don't trigger skip."""
+        models = ["model-a"]
+        annotations = {
+            "model-a": {"optimizer": "unknown"},
+        }
+        result = filter_by_annotations(models, annotations, phase="optimize")
+        assert result == ["model-a"]
+
+    def test_backward_compat_skip_optimizer_true(self):
+        """Legacy skip_optimizer: true still works."""
         models = ["model-a", "model-b"]
         annotations = {
-            "model-a": {"skip_optimizer": "yes"},  # truthy but not True
-            "model-b": {"skip_optimizer": True},
+            "model-a": {"skip_optimizer": True},
+            "model-b": {"role": "general"},
         }
-        # "yes" is truthy, so it should also skip
+        assert filter_by_annotations(models, annotations, phase="optimize") == ["model-b"]
+        assert filter_by_annotations(models, annotations, phase="apply") == ["model-b"]
+
+    def test_default_phase_is_optimize(self):
+        """Phase defaults to optimize."""
+        models = ["model-a", "model-b"]
+        annotations = {
+            "model-a": {"optimizer": "skip"},
+        }
         result = filter_by_annotations(models, annotations)
-        assert "model-b" not in result
+        assert result == ["model-b"]

@@ -295,9 +295,21 @@ def load_annotations(annotations_path) -> dict:
         return {}
 
 
-def filter_by_annotations(models: list, annotations: dict) -> list:
-    """Remove models where annotations have skip_optimizer set to truthy."""
-    return [m for m in models if not annotations.get(m, {}).get("skip_optimizer")]
+def _is_excluded(ann: dict, phase: str = "optimize") -> bool:
+    """Check if a model's annotation excludes it from the given phase."""
+    # New format: optimizer: skip | lock
+    opt = ann.get("optimizer", "")
+    if opt in ("skip", "lock"):
+        return True
+    # Legacy format: skip_optimizer: true
+    if ann.get("skip_optimizer"):
+        return True
+    return False
+
+
+def filter_by_annotations(models: list, annotations: dict, phase: str = "optimize") -> list:
+    """Remove models excluded by annotations for the given phase (optimize or apply)."""
+    return [m for m in models if not _is_excluded(annotations.get(m, {}), phase)]
 
 
 def load_results(results_dir: str) -> dict:
@@ -338,11 +350,15 @@ def save_result(results_dir: str, model_name: str, result: dict):
     print(f"  ✅ Results saved: {out_path}")
 
 
-def generate_optimized_config(config: dict, results: dict) -> dict:
+def generate_optimized_config(config: dict, results: dict, annotations: dict = None) -> dict:
     """Apply optimization results to config and return a new config dict."""
+    annotations = annotations or {}
     new_config = deepcopy(config)
 
     for model_name, model_conf in new_config.get("models", {}).items():
+        if _is_excluded(annotations.get(model_name, {}), phase="apply"):
+            print(f"  🔒 {model_name}: excluded by annotation (skipped)")
+            continue
         if model_name not in results:
             print(f"  ⏭️  {model_name}: no results available (skipped)")
             continue
@@ -443,11 +459,11 @@ def main():
     # Filter target models
     target_models = list(models.keys())
     annotations = load_annotations(config_path.parent / "model-annotations.yaml")
-    skipped_by_annotation = [m for m in target_models if annotations.get(m, {}).get("skip_optimizer")]
-    if skipped_by_annotation:
-        print(f"⏭️  Skipping (annotations): {', '.join(skipped_by_annotation)}")
+    excluded = [m for m in target_models if _is_excluded(annotations.get(m, {}), "optimize")]
+    if excluded:
+        print(f"⏭️  Skipping (annotations): {', '.join(excluded)}")
         print()
-    target_models = filter_by_annotations(target_models, annotations)
+    target_models = filter_by_annotations(target_models, annotations, phase="optimize")
     if args.only:
         target_models = [m for m in target_models if m in args.only]
     if args.skip:
@@ -506,7 +522,7 @@ def main():
     # Reload results (raw_output was stripped during save)
     results = load_results(args.results_dir)
 
-    new_config = generate_optimized_config(config, results)
+    new_config = generate_optimized_config(config, results, annotations)
 
     # Determine output path
     if args.output:

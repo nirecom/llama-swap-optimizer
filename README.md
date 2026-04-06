@@ -110,15 +110,25 @@ python llama_swap_optimizer.py --only my-large-model --trials 15 --timeout 43200
 
 ## Skipping models with annotations
 
-If a `model-annotations.yaml` file exists alongside your `config.yaml`, models with `skip_optimizer: true` are automatically excluded from optimization. This is useful for CPU-only models where GPU parameter tuning has no effect.
+If a `model-annotations.yaml` file exists alongside your `config.yaml`, you can control per-model optimization and config apply behavior:
 
 ```yaml
 # model-annotations.yaml
 my-cpu-model:
-  skip_optimizer: true
+  optimizer: skip    # no need to optimize (e.g. CPU-only model)
+
+my-tuned-model:
+  optimizer: lock    # manually tuned, don't overwrite config
 ```
 
+| Value | Meaning | Optimize | Apply |
+|-------|---------|----------|-------|
+| `optimizer: skip` | No optimization needed | Skipped | Skipped |
+| `optimizer: lock` | Manually tuned, don't overwrite | Skipped | Skipped |
+| (not set) | Normal | Run | Run |
+
 If the file does not exist, all models in `config.yaml` are optimized (backward compatible).
+Legacy `skip_optimizer: true` is also supported.
 
 ## Resume capability
 
