@@ -424,9 +424,9 @@ def main():
                         help=f"Optimization target metric (default: {DEFAULT_METRIC})")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT,
                         help=f"Timeout per model in seconds (default: {DEFAULT_TIMEOUT} = {DEFAULT_TIMEOUT//3600}h)")
-    parser.add_argument("--only", nargs="+", default=[],
+    parser.add_argument("--only", nargs="+", action="extend", default=[],
                         help="Only optimize specified model(s)")
-    parser.add_argument("--skip", nargs="+", default=[],
+    parser.add_argument("--skip", nargs="+", action="extend", default=[],
                         help="Skip specified model(s)")
     parser.add_argument("--apply-only", action="store_true",
                         help="Apply saved results only (do not run llama-optimus)")
