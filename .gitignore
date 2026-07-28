@@ -4,3 +4,5 @@ __pycache__/
 results/
 .venv/
 .env
+
+.migration-state.json
